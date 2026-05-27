@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bản đồ 2D Việt Nam – ArcGIS JavaScript API</title>
+
+    <!-- ArcGIS Maps SDK for JavaScript 4.29 -->
+    <link
+      rel="stylesheet"
+      href="https://js.arcgis.com/4.29/esri/themes/light/main.css"
+    />
+    <script src="https://js.arcgis.com/4.29/"></script>
+
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body,
+      #viewDiv {
+        height: 100%;
+        width: 100%;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+
+      /* ── Title bar ──────────────────────────────────────────────────── */
+      #titleBar {
+        position: absolute;
+        top: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.96);
+        padding: 10px 24px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+        z-index: 100;
+        text-align: center;
+        min-width: 320px;
+      }
+
+      #titleBar h2 {
+        font-size: 18px;
+        color: #c0392b;
+        font-weight: 700;
+      }
+
+      #titleBar p {
+        font-size: 12px;
+        color: #555;
+        margin-top: 3px;
+      }
+
+      /* ── Stats bar ──────────────────────────────────────────────────── */
+      #statsBar {
+        position: absolute;
+        top: 90px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.92);
+        padding: 6px 18px;
+        border-radius: 20px;
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+        z-index: 100;
+        display: flex;
+        gap: 18px;
+        font-size: 12px;
+        color: #333;
+      }
+
+      .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .stat-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+      }
+
+      /* ── Legend ─────────────────────────────────────────────────────── */
+      #legend {
+        position: absolute;
+        bottom: 30px;
+        left: 15px;
+        background: rgba(255, 255, 255, 0.96);
+        padding: 14px 16px;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+        z-index: 100;
+        min-width: 190px;
+      }
+
+      #legend h4 {
+        font-size: 13px;
+        font-weight: 700;
+        color: #222;
+        margin-bottom: 10px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #e0e0e0;
+      }
+
+      .legend-section {
+        margin-bottom: 10px;
+      }
+
+      .legend-section-title {
+        font-size: 11px;
+        font-weight: 600;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 5px;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 4px 0;
+        font-size: 12px;
+        color: #333;
+      }
+
+      .legend-polygon {
+        width: 18px;
+        height: 13px;
+        border-radius: 2px;
+        border: 2px solid;
+        opacity: 0.85;
+      }
+
+      .legend-line {
+        width: 22px;
+        height: 3px;
+        border-radius: 2px;
+      }
+
+      .legend-point {
+        font-size: 16px;
+        line-height: 1;
+      }
+
+      /* ── Tooltip hint ───────────────────────────────────────────────── */
+      #hint {
+        position: absolute;
+        bottom: 30px;
+        right: 15px;
+        background: rgba(44, 62, 80, 0.88);
+        color: #fff;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        z-index: 100;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="viewDiv"></div>
+
+    <!-- Title -->
+    <div id="titleBar">
+      <h2>🗺️ Bản đồ 2D Việt Nam</h2>
+      <p>ArcGIS JavaScript API &nbsp;|&nbsp; Click vào đối tượng để xem thông tin chi tiết</p>
+    </div>
+
+    <!-- Feature counts -->
+    <div id="statsBar">
+      <div class="stat-item">
+        <div class="stat-dot" style="background:#e74c3c; border:1px solid #c0392b;"></div>
+        <span id="polyCount">7 Tỉnh/TP</span>
+      </div>
+      <div class="stat-item">
+        <div class="stat-dot" style="background:#2980b9; height:4px; border-radius:2px;"></div>
+        <span id="lineCount">7 Sông/Đường</span>
+      </div>
+      <div class="stat-item">
+        <div class="stat-dot" style="background:#27ae60; border-radius:50%;"></div>
+        <span id="pointCount">10 Điểm DL</span>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div id="legend">
+      <h4>📋 Chú giải</h4>
+
+      <div class="legend-section">
+        <div class="legend-section-title">Đa giác – Tỉnh/Thành phố</div>
+        <div class="legend-item">
+          <div class="legend-polygon" style="background:rgba(231,76,60,0.4); border-color:#e74c3c;"></div> Hà Nội
+        </div>
+        <div class="legend-item">
+          <div class="legend-polygon" style="background:rgba(230,126,34,0.4); border-color:#e67e22;"></div> TP. HCM
+        </div>
+        <div class="legend-item">
+          <div class="legend-polygon" style="background:rgba(39,174,96,0.4); border-color:#27ae60;"></div> Đà Nẵng
+        </div>
+        <div class="legend-item">
+          <div class="legend-polygon" style="background:rgba(142,68,173,0.4); border-color:#8e44ad;"></div> Thừa Thiên Huế
+        </div>
+        <div class="legend-item">
+          <div class="legend-polygon" style="background:rgba(41,128,185,0.4); border-color:#2980b9;"></div> Cần Thơ / Khác
+        </div>
+      </div>
+
+      <div class="legend-section">
+        <div class="legend-section-title">Đường – Sông &amp; Quốc lộ</div>
+        <div class="legend-item">
+          <div class="legend-line" style="background:#1a6fc4;"></div> Sông lớn
+        </div>
+        <div class="legend-item">
+          <div class="legend-line" style="background:#7d3c0a; border-top:2px dashed #7d3c0a; height:0;"></div> Quốc lộ
+        </div>
+        <div class="legend-item">
+          <div class="legend-line" style="background:#1e8449;"></div> Sông địa phương
+        </div>
+      </div>
+
+      <div class="legend-section">
+        <div class="legend-section-title">Điểm – Địa danh &amp; Du lịch</div>
+        <div class="legend-item"><span class="legend-point">🏛️</span> Di tích lịch sử</div>
+        <div class="legend-item"><span class="legend-point">🏝️</span> Di sản thiên nhiên</div>
+        <div class="legend-item"><span class="legend-point">🏮</span> Di sản văn hóa</div>
+        <div class="legend-item"><span class="legend-point">⛰️</span> Địa lý / Núi</div>
+      </div>
+    </div>
+
+    <!-- Hint -->
+    <div id="hint">💡 Click để xem thông tin • Scroll để zoom</div>
+
+    <script>
+      require(
+        [
+          "esri/Map",
+          "esri/views/MapView",
+          "esri/Graphic",
+          "esri/layers/GraphicsLayer",
+          "esri/geometry/Polygon",
+          "esri/geometry/Polyline",
+          "esri/geometry/Point",
+          "esri/symbols/SimpleFillSymbol",
+          "esri/symbols/SimpleLineSymbol",
+          "esri/symbols/PictureMarkerSymbol",
+          "esri/PopupTemplate",
+        ],
+        function (
+          Map,
+          MapView,
+          Graphic,
+          GraphicsLayer,
+          Polygon,
+          Polyline,
+          Point,
+          SimpleFillSymbol,
+          SimpleLineSymbol,
+          PictureMarkerSymbol,
+          PopupTemplate
+        ) {
+          /* ════════════════════════════════════════════════════════════
+           *  MAP + VIEW
+           * ════════════════════════════════════════════════════════════ */
+          const map = new Map({ basemap: "topo-vector" });
+
+          const view = new MapView({
+            container: "viewDiv",
+            map: map,
+            center: [106.5, 16.5], // centre Vietnam
+            zoom: 6,
+            popup: {
+              dockEnabled: false,
+              dockOptions: { buttonEnabled: true, position: "top-right" },
+            },
+          });
+
+          const layer = new GraphicsLayer({ title: "Bản đồ Việt Nam" });
+          map.add(layer);
+
+          /* ════════════════════════════════════════════════════════════
+           *  HELPER – SVG picture marker
+           * ════════════════════════════════════════════════════════════ */
+          function svgMarker(emoji, bgHex) {
+            const svg = [
+              '<svg xmlns="http://www.w3.org/2000/svg" width="44" height="52" viewBox="0 0 44 52">',
+              // pin body
+              `<path d="M22 2 C10 2 2 11 2 22 C2 36 22 50 22 50 C22 50 42 36 42 22 C42 11 34 2 22 2Z"`,
+              ` fill="${bgHex}" stroke="white" stroke-width="2.5"/>`,
+              // inner circle
+              `<circle cx="22" cy="22" r="13" fill="rgba(255,255,255,0.25)"/>`,
+              // emoji
+              `<text x="22" y="28" text-anchor="middle" font-size="17">${emoji}</text>`,
+              "</svg>",
+            ].join("");
+            return (
+              "data:image/svg+xml;base64," +
+              btoa(unescape(encodeURIComponent(svg)))
+            );
+          }
+
+          /* ════════════════════════════════════════════════════════════
+           *  POPUP HELPERS
+           * ════════════════════════════════════════════════════════════ */
+          function tableRow(label, value, shade) {
+            const bg = shade ? "background:#f8f8f8;" : "";
+            return `<tr style="${bg}">
+              <td style="padding:5px 9px;font-weight:600;color:#555;white-space:nowrap;">${label}</td>
+              <td style="padding:5px 9px;color:#222;">${value}</td>
+            </tr>`;
+          }
+
+          function popupContent(rows, description) {
+            return `<div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;">
+              <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
+                ${rows}
+              </table>
+              <p style="margin:6px 2px 2px;color:#444;line-height:1.6;">${description}</p>
+            </div>`;
+          }
+
+          /* ════════════════════════════════════════════════════════════
+           *  ① POLYGONS – Tỉnh / Thành phố  (7 đa giác)
+           * ════════════════════════════════════════════════════════════ */
+          const POLYGONS = [
+            {
+              name: "Hà Nội",
+              color: [231, 76, 60, 0.42],
+              outline: "#e74c3c",
+              rings: [
+                [105.62, 21.38],
+                [106.03, 21.38],
+                [106.03, 20.90],
+                [105.85, 20.75],
+                [105.62, 20.83],
+                [105.62, 21.38],
+              ],
+              info: {
+                "📏 Diện tích": "3.359 km²",
+                "👥 Dân số": "8,4 triệu người",
+                "⭐ Đặc điểm": "Thủ đô Việt Nam",
+                "📅 Thành lập": "1010 (Thăng Long)",
+              },
+              desc: "Hà Nội là Thủ đô và là thành phố lớn thứ hai của Việt Nam. Nơi đây có hơn 1.000 năm lịch sử với Hồ Hoàn Kiếm, Văn Miếu, Ba Đình và nhiều di tích lịch sử nổi tiếng.",
+            },
+            {
+              name: "TP. Hồ Chí Minh",
+              color: [230, 126, 34, 0.42],
+              outline: "#e67e22",
+              rings: [
+                [106.38, 11.05],
+                [106.90, 11.05],
+                [106.95, 10.68],
+                [106.72, 10.52],
+                [106.42, 10.63],
+                [106.33, 10.88],
+                [106.38, 11.05],
+              ],
+              info: {
+                "📏 Diện tích": "2.061 km²",
+                "👥 Dân số": "9,3 triệu người",
+                "⭐ Đặc điểm": "Trung tâm kinh tế lớn nhất",
+                "📅 Thành lập": "1698",
+              },
+              desc: "TP. Hồ Chí Minh (Sài Gòn) là thành phố lớn nhất và là đầu tàu kinh tế của Việt Nam, đóng góp khoảng 22% GDP cả nước. Thành phố năng động với hơn 60 đại học và trường cao đẳng.",
+            },
+            {
+              name: "Đà Nẵng",
+              color: [39, 174, 96, 0.42],
+              outline: "#27ae60",
+              rings: [
+                [107.93, 16.22],
+                [108.32, 16.22],
+                [108.38, 15.92],
+                [108.15, 15.82],
+                [107.88, 15.95],
+                [107.93, 16.22],
+              ],
+              info: {
+                "📏 Diện tích": "1.285 km²",
+                "👥 Dân số": "1,2 triệu người",
+                "⭐ Đặc điểm": "Thành phố đáng sống nhất VN",
+                "📅 Thành lập": "1471",
+              },
+              desc: "Đà Nẵng là trung tâm kinh tế-xã hội lớn của miền Trung, nổi tiếng với bãi biển Mỹ Khê, Bán đảo Sơn Trà, Cầu Rồng và là cửa ngõ đến các di sản UNESCO của miền Trung.",
+            },
+            {
+              name: "Thừa Thiên Huế",
+              color: [142, 68, 173, 0.42],
+              outline: "#8e44ad",
+              rings: [
+                [107.38, 16.75],
+                [107.88, 16.70],
+                [107.85, 16.28],
+                [107.42, 16.33],
+                [107.38, 16.75],
+              ],
+              info: {
+                "📏 Diện tích": "5.025 km²",
+                "👥 Dân số": "1,16 triệu người",
+                "⭐ Đặc điểm": "Cố đô – Di sản UNESCO",
+                "📅 Thành lập": "1306",
+              },
+              desc: "Thừa Thiên Huế có Cố đô Huế là Di sản Văn hóa Thế giới UNESCO (1993). Nơi đây lưu giữ di sản phong phú của triều Nguyễn: Kinh thành, Hoàng thành, lăng tẩm và ẩm thực cung đình đặc sắc.",
+            },
+            {
+              name: "Cần Thơ",
+              color: [41, 128, 185, 0.42],
+              outline: "#2980b9",
+              rings: [
+                [105.53, 10.26],
+                [105.96, 10.26],
+                [105.97, 9.88],
+                [105.65, 9.83],
+                [105.48, 10.02],
+                [105.53, 10.26],
+              ],
+              info: {
+                "📏 Diện tích": "1.408 km²",
+                "👥 Dân số": "1,35 triệu người",
+                "⭐ Đặc điểm": "Thủ phủ đồng bằng sông Cửu Long",
+                "📅 Thành lập": "1739",
+              },
+              desc: "Cần Thơ – 'Tây Đô' là thành phố lớn nhất ở Đồng bằng sông Cửu Long, nổi tiếng với chợ nổi Cái Răng, vườn trái cây nhiệt đới và hệ thống kênh rạch chằng chịt.",
+            },
+            {
+              name: "Hải Phòng",
+              color: [22, 160, 133, 0.42],
+              outline: "#16a085",
+              rings: [
+                [106.50, 21.07],
+                [106.87, 21.02],
+                [106.92, 20.73],
+                [106.60, 20.68],
+                [106.44, 20.86],
+                [106.50, 21.07],
+              ],
+              info: {
+                "📏 Diện tích": "1.527 km²",
+                "👥 Dân số": "2,1 triệu người",
+                "⭐ Đặc điểm": "Cảng biển lớn nhất miền Bắc",
+                "📅 Thành lập": "1888",
+              },
+              desc: "Hải Phòng là thành phố cảng quan trọng nhất miền Bắc, cửa ngõ giao thương quốc tế. Thành phố nằm gần Vịnh Hạ Long, có đảo Cát Bà là Khu dự trữ sinh quyển thế giới.",
+            },
+            {
+              name: "Khánh Hòa (Nha Trang)",
+              color: [211, 84, 0, 0.42],
+              outline: "#d35400",
+              rings: [
+                [108.88, 12.52],
+                [109.38, 12.52],
+                [109.42, 12.08],
+                [109.12, 11.93],
+                [108.83, 12.13],
+                [108.88, 12.52],
+              ],
+              info: {
+                "📏 Diện tích": "5.218 km²",
+                "👥 Dân số": "1,3 triệu người",
+                "⭐ Đặc điểm": "Thiên đường biển miền Trung",
+                "📅 Thành lập": "1653",
+              },
+              desc: "Khánh Hòa nổi tiếng với Vịnh Nha Trang – một trong những vịnh đẹp nhất thế giới, quần đảo san hô, và lễ hội tháp Chăm cổ kính Po Nagar. Điểm đến du lịch hàng đầu Việt Nam.",
+            },
+          ];
+
+          POLYGONS.forEach((d) => {
+            const rows = Object.entries(d.info)
+              .map(([k, v], i) => tableRow(k, v, i % 2 === 0))
+              .join("");
+
+            layer.add(
+              new Graphic({
+                geometry: new Polygon({
+                  rings: [d.rings],
+                  spatialReference: { wkid: 4326 },
+                }),
+                symbol: new SimpleFillSymbol({
+                  color: d.color,
+                  outline: { color: d.outline, width: 2 },
+                }),
+                attributes: { name: d.name },
+                popupTemplate: new PopupTemplate({
+                  title: "🏙️ {name}",
+                  content: popupContent(rows, d.desc),
+                }),
+              })
+            );
+          });
+
+          /* ════════════════════════════════════════════════════════════
+           *  ② POLYLINES – Sông & Quốc lộ  (7 đường)
+           * ════════════════════════════════════════════════════════════ */
+          const LINES = [
+            {
+              name: "Sông Hồng",
+              color: [26, 111, 196],
+              width: 3.5,
+              style: "solid",
+              paths: [
+                [102.15, 22.52],
+                [103.02, 22.30],
+                [103.85, 22.02],
+                [104.22, 21.68],
+                [104.80, 21.32],
+                [105.35, 21.12],
+                [105.88, 21.02],
+                [106.07, 20.88],
+                [106.22, 20.50],
+              ],
+              info: {
+                "📏 Chiều dài": "1.149 km (VN: ~510 km)",
+                "🏷️ Loại": "Sông lớn – cấp quốc gia",
+                "📍 Vùng": "Bắc Bộ",
+              },
+              desc: "Sông Hồng (Red River) là con sông lớn nhất miền Bắc, chảy qua Hà Nội và đổ ra Vịnh Bắc Bộ. Phù sa sông Hồng màu đỏ đặc trưng bồi đắp nên đồng bằng châu thổ Bắc Bộ màu mỡ.",
+            },
+            {
+              name: "Sông Mê Kông (Cửu Long)",
+              color: [21, 132, 186],
+              width: 3.5,
+              style: "solid",
+              paths: [
+                [105.85, 11.52],
+                [105.92, 11.20],
+                [106.02, 10.90],
+                [105.88, 10.55],
+                [105.66, 10.20],
+                [105.42, 9.85],
+                [105.12, 9.55],
+              ],
+              info: {
+                "📏 Chiều dài": "4.880 km (qua VN: ~230 km)",
+                "🏷️ Loại": "Sông quốc tế",
+                "📍 Vùng": "Nam Bộ",
+              },
+              desc: "Sông Mê Kông là một trong những con sông dài nhất và lớn nhất châu Á. Đoạn qua Việt Nam gọi là sông Cửu Long (9 nhánh), tạo nên đồng bằng sông Cửu Long trù phú, vựa lúa lớn nhất nước.",
+            },
+            {
+              name: "Quốc lộ 1A (Xuyên Việt)",
+              color: [125, 60, 10],
+              width: 2.2,
+              style: "dash",
+              paths: [
+                [105.88, 21.03],
+                [106.62, 20.87],
+                [107.60, 16.47],
+                [108.22, 16.06],
+                [108.45, 13.76],
+                [109.19, 12.24],
+                [108.73, 11.56],
+                [106.64, 10.83],
+                [105.78, 10.04],
+              ],
+              info: {
+                "📏 Chiều dài": "2.301 km",
+                "🏷️ Loại": "Quốc lộ – trục xương sống",
+                "📍 Vùng": "Toàn quốc (Bắc–Nam)",
+              },
+              desc: "Quốc lộ 1A là tuyến đường huyết mạch chạy suốt chiều dài đất nước từ cửa khẩu Hữu Nghị (Lạng Sơn) đến Năm Căn (Cà Mau). Đây là trục giao thông đường bộ quan trọng nhất Việt Nam.",
+            },
+            {
+              name: "Sông Đà (Black River)",
+              color: [26, 82, 118],
+              width: 2.8,
+              style: "solid",
+              paths: [
+                [102.82, 22.42],
+                [103.22, 22.12],
+                [103.62, 21.82],
+                [104.02, 21.52],
+                [104.52, 21.22],
+                [105.02, 21.12],
+                [105.32, 20.97],
+              ],
+              info: {
+                "📏 Chiều dài": "910 km (VN: ~527 km)",
+                "🏷️ Loại": "Phụ lưu sông Hồng",
+                "📍 Vùng": "Tây Bắc Bộ",
+              },
+              desc: "Sông Đà là phụ lưu lớn nhất của sông Hồng, chảy qua các tỉnh Lai Châu, Điện Biên, Sơn La và Hòa Bình. Đây là nơi tọa lạc của Nhà máy Thủy điện Hòa Bình – công trình thế kỷ của Việt Nam.",
+            },
+            {
+              name: "Đường Hồ Chí Minh (Trường Sơn)",
+              color: [30, 132, 73],
+              width: 2.2,
+              style: "dot",
+              paths: [
+                [105.02, 21.52],
+                [104.82, 20.52],
+                [104.52, 19.52],
+                [104.22, 18.52],
+                [104.02, 17.52],
+                [103.82, 16.52],
+                [104.02, 15.52],
+                [104.32, 14.52],
+                [104.82, 13.52],
+              ],
+              info: {
+                "📏 Chiều dài": "~3.183 km",
+                "🏷️ Loại": "Quốc lộ / Di tích lịch sử",
+                "📍 Vùng": "Trung–Tây Nguyên",
+              },
+              desc: "Đường Hồ Chí Minh (đường Trường Sơn) là tuyến đường tiếp vận huyền thoại trong kháng chiến chống Mỹ. Ngày nay được phát triển thành Quốc lộ Hồ Chí Minh hiện đại chạy song song QL1A.",
+            },
+            {
+              name: "Sông Thu Bồn",
+              color: [52, 152, 219],
+              width: 2.2,
+              style: "solid",
+              paths: [
+                [107.82, 16.02],
+                [107.93, 15.87],
+                [108.07, 15.72],
+                [108.17, 15.60],
+                [108.32, 15.52],
+              ],
+              info: {
+                "📏 Chiều dài": "205 km",
+                "🏷️ Loại": "Sông địa phương",
+                "📍 Vùng": "Miền Trung (Quảng Nam)",
+              },
+              desc: "Sông Thu Bồn chảy qua tỉnh Quảng Nam và Đà Nẵng. Hạ lưu sông tạo nên phố cổ Hội An – Di sản văn hóa thế giới, với cảnh sắc đèn lồng lung linh trên mặt nước vào mỗi đêm rằm.",
+            },
+            {
+              name: "Quốc lộ 14 – Tây Nguyên",
+              color: [160, 84, 22],
+              width: 2.0,
+              style: "short-dash",
+              paths: [
+                [107.50, 14.55],
+                [107.42, 13.52],
+                [107.32, 12.52],
+                [107.45, 11.52],
+                [107.33, 10.82],
+              ],
+              info: {
+                "📏 Chiều dài": "~663 km",
+                "🏷️ Loại": "Quốc lộ – Tây Nguyên",
+                "📍 Vùng": "Kon Tum → Bình Phước",
+              },
+              desc: "Quốc lộ 14 là trục đường bộ huyết mạch qua vùng Tây Nguyên, kết nối các tỉnh Kon Tum, Gia Lai, Đắk Lắk, Đắk Nông và Bình Phước – vùng đất của cà phê, cao su và văn hóa cồng chiêng.",
+            },
+          ];
+
+          LINES.forEach((d) => {
+            const rows = Object.entries(d.info)
+              .map(([k, v], i) => tableRow(k, v, i % 2 === 0))
+              .join("");
+
+            layer.add(
+              new Graphic({
+                geometry: new Polyline({
+                  paths: [d.paths],
+                  spatialReference: { wkid: 4326 },
+                }),
+                symbol: new SimpleLineSymbol({
+                  color: d.color,
+                  width: d.width,
+                  style: d.style,
+                }),
+                attributes: { name: d.name },
+                popupTemplate: new PopupTemplate({
+                  title: "🛣️ {name}",
+                  content: popupContent(rows, d.desc),
+                }),
+              })
+            );
+          });
+
+          /* ════════════════════════════════════════════════════════════
+           *  ③ POINTS – Địa danh / Du lịch  (10 điểm)
+           *     Dùng PictureMarkerSymbol với SVG data URI
+           * ════════════════════════════════════════════════════════════ */
+          const POINTS = [
+            {
+              name: "Hồ Hoàn Kiếm",
+              lon: 105.852,
+              lat: 21.029,
+              emoji: "🏛️",
+              bg: "#c0392b",
+              info: {
+                "🏷️ Loại": "Di tích lịch sử quốc gia đặc biệt",
+                "📍 Vị trí": "Quận Hoàn Kiếm, Hà Nội",
+                "⭐ Nổi tiếng": "Tháp Rùa, Đền Ngọc Sơn",
+              },
+              desc: "Hồ Hoàn Kiếm (Hồ Gươm) là hồ nước ngọt tự nhiên nằm giữa trung tâm Hà Nội, gắn với truyền thuyết vua Lê Lợi trả gươm thần cho Rùa Vàng. Đây là biểu tượng tâm hồn và lịch sử của người Hà Nội.",
+            },
+            {
+              name: "Vịnh Hạ Long",
+              lon: 107.055,
+              lat: 20.910,
+              emoji: "🏝️",
+              bg: "#1a6fc4",
+              info: {
+                "🏷️ Loại": "Di sản Thiên nhiên Thế giới",
+                "📍 Vị trí": "Quảng Ninh",
+                "⭐ UNESCO": "Công nhận 1994 & 2000",
+              },
+              desc: "Vịnh Hạ Long là kỳ quan thiên nhiên thế giới với ~1.969 hòn đảo đá vôi nhô lên từ mặt biển xanh. Được UNESCO công nhận Di sản Thiên nhiên Thế giới hai lần và là điểm đến không thể bỏ qua ở Việt Nam.",
+            },
+            {
+              name: "Phố cổ Hội An",
+              lon: 108.327,
+              lat: 15.879,
+              emoji: "🏮",
+              bg: "#d68910",
+              info: {
+                "🏷️ Loại": "Di sản Văn hóa Thế giới",
+                "📍 Vị trí": "Quảng Nam",
+                "⭐ UNESCO": "Công nhận 1999",
+              },
+              desc: "Phố cổ Hội An là đô thị thương cảng cổ được bảo tồn gần như nguyên vẹn từ thế kỷ 15-19. Nổi tiếng với đèn lồng lung linh, kiến trúc hội tụ văn hóa Việt–Hoa–Nhật–Châu Âu, ẩm thực và lễ hội đèn lồng.",
+            },
+            {
+              name: "Cố đô Huế",
+              lon: 107.599,
+              lat: 16.463,
+              emoji: "👑",
+              bg: "#7d3c98",
+              info: {
+                "🏷️ Loại": "Di sản Văn hóa Thế giới",
+                "📍 Vị trí": "Thừa Thiên Huế",
+                "⭐ UNESCO": "Công nhận 1993",
+              },
+              desc: "Quần thể di tích Cố đô Huế gồm Kinh thành, Hoàng thành, Tử Cấm thành và lăng tẩm 13 vua triều Nguyễn. Huế là kinh đô cuối cùng của Việt Nam (1802-1945) và là trung tâm văn hóa, nghệ thuật, ẩm thực cung đình.",
+            },
+            {
+              name: "Thánh địa Mỹ Sơn",
+              lon: 108.123,
+              lat: 15.764,
+              emoji: "🗿",
+              bg: "#935116",
+              info: {
+                "🏷️ Loại": "Di sản Văn hóa Thế giới – Chăm Pa",
+                "📍 Vị trí": "Quảng Nam",
+                "⭐ UNESCO": "Công nhận 1999",
+              },
+              desc: "Thánh địa Mỹ Sơn là quần thể đền tháp Hindu giáo của vương quốc Chăm Pa cổ đại (thế kỷ 4-13). Đây là công trình tôn giáo lớn nhất và quan trọng nhất của văn hóa Chăm tại Đông Nam Á.",
+            },
+            {
+              name: "Phong Nha – Kẻ Bàng",
+              lon: 106.286,
+              lat: 17.544,
+              emoji: "🦎",
+              bg: "#1e8449",
+              info: {
+                "🏷️ Loại": "Vườn Quốc gia – Di sản Thiên nhiên",
+                "📍 Vị trí": "Quảng Bình",
+                "⭐ UNESCO": "Công nhận 2003 & 2015",
+              },
+              desc: "Phong Nha – Kẻ Bàng nổi tiếng với hang Sơn Đoòng – hang động lớn nhất thế giới (cao 200m, rộng 150m). Nơi đây còn có Thiên Đường, Phong Nha và hơn 300 hang động với các thạch nhũ kỳ vĩ.",
+            },
+            {
+              name: "Fansipan – Sa Pa",
+              lon: 103.776,
+              lat: 22.303,
+              emoji: "⛰️",
+              bg: "#1f618d",
+              info: {
+                "🏷️ Loại": "Đỉnh núi cao nhất Đông Dương",
+                "📍 Vị trí": "Lào Cai",
+                "⭐ Độ cao": "3.143 m – Nóc nhà Đông Dương",
+              },
+              desc: "Fansipan (3.143m) là đỉnh núi cao nhất Việt Nam và Đông Dương. Sa Pa nổi tiếng với ruộng bậc thang Mù Cang Chải tuyệt đẹp, bản làng H'Mông, Dao đỏ và khí hậu mát mẻ quanh năm.",
+            },
+            {
+              name: "Dinh Độc Lập – TP. HCM",
+              lon: 106.695,
+              lat: 10.779,
+              emoji: "🏛️",
+              bg: "#cb4335",
+              info: {
+                "🏷️ Loại": "Di tích lịch sử quốc gia đặc biệt",
+                "📍 Vị trí": "Quận 1, TP. Hồ Chí Minh",
+                "⭐ Ý nghĩa": "Chứng kiến thống nhất 30/4/1975",
+              },
+              desc: "Dinh Độc Lập (Hội trường Thống Nhất) là nơi diễn ra sự kiện lịch sử 30/4/1975 khi xe tăng giải phóng tiến vào, đánh dấu ngày thống nhất đất nước. Công trình kiến trúc do KTS Ngô Viết Thụ thiết kế.",
+            },
+            {
+              name: "Chợ nổi Cái Răng",
+              lon: 105.774,
+              lat: 10.016,
+              emoji: "🚢",
+              bg: "#148f77",
+              info: {
+                "🏷️ Loại": "Di sản văn hóa phi vật thể quốc gia",
+                "📍 Vị trí": "Cần Thơ",
+                "⭐ Đặc trưng": "Chợ họp trên sông từ 5–8 giờ sáng",
+              },
+              desc: "Chợ nổi Cái Răng là một trong những chợ nổi sầm uất nhất Đồng bằng sông Cửu Long. Hàng trăm thuyền bè trao đổi hàng nông sản, trái cây nhiệt đới từ rạng sáng – nét văn hóa đặc trưng miền Tây Nam Bộ.",
+            },
+            {
+              name: "Mũi Cà Mau – Cực Nam Việt Nam",
+              lon: 104.725,
+              lat: 8.635,
+              emoji: "🌊",
+              bg: "#1abc9c",
+              info: {
+                "🏷️ Loại": "Điểm cực Nam lãnh thổ VN",
+                "📍 Vị trí": "Cà Mau",
+                "⭐ Đặc điểm": "Nơi hai biển Đông – Tây gặp nhau",
+              },
+              desc: "Mũi Cà Mau là điểm cực Nam của lãnh thổ Việt Nam – nơi Biển Đông và Vịnh Thái Lan giao nhau. Vườn quốc gia Mũi Cà Mau (Di sản Ramsar) có rừng đước ngập mặn độc đáo và hệ sinh thái đa dạng.",
+            },
+          ];
+
+          POINTS.forEach((d) => {
+            const rows = Object.entries(d.info)
+              .map(([k, v], i) => tableRow(k, v, i % 2 === 0))
+              .join("");
+
+            layer.add(
+              new Graphic({
+                geometry: new Point({
+                  longitude: d.lon,
+                  latitude: d.lat,
+                  spatialReference: { wkid: 4326 },
+                }),
+                symbol: new PictureMarkerSymbol({
+                  url: svgMarker(d.emoji, d.bg),
+                  width: "44px",
+                  height: "52px",
+                }),
+                attributes: { name: d.name },
+                popupTemplate: new PopupTemplate({
+                  title: "📌 {name}",
+                  content: popupContent(rows, d.desc),
+                }),
+              })
+            );
+          });
+
+          /* ════════════════════════════════════════════════════════════
+           *  Dismiss hint after 5 s
+           * ════════════════════════════════════════════════════════════ */
+          view.when(function () {
+            setTimeout(function () {
+              const hint = document.getElementById("hint");
+              if (hint) {
+                hint.style.transition = "opacity 1s";
+                hint.style.opacity = "0";
+                setTimeout(() => hint.remove(), 1000);
+              }
+            }, 5000);
+          });
+        }
+      );
+    </script>
+  </body>
+</html>
